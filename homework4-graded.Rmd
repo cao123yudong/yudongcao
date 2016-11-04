@@ -4,6 +4,13 @@ output: pdf_document
 author: "Yudong Cao"
 ---
 
+**Grade: 48/50**
+
+**Comment:** In the football problem you've added a requisite that there is at least 1 player in each position via the following code:   x2[qb.ix, 'marg'] <- x2[qb.ix,'points'] - x2[qb.ix[max(1,posReq['qb'])*nTeams],'points']
+.  I did not take off for this because it was a logical assumption.  But FYI, Cole's intent is to allow for zero players in a position for the fantasy team.
+
+
+
 *Due Tuesday, 01 November, 1:00 PM*
 
 $5^{n=day}$ points taken off for each day late.
@@ -108,6 +115,10 @@ game()
 game()
 game()
 ```
+
+
+**JC Grading -2**
+Question also asks output to show progress of game.
 
 2. Find a seed that will win ten straight games.  Consider adding an argument to your function that disables output. Show the output of the ten games. (5 points)
 
@@ -261,6 +272,13 @@ attach(x3)
 ```{r}
 sum(x3$value > 20)
 ```
+    
+
+```{r}
+x3[x3$value>20,]
+```
+
+    
     
     2.  How many quarterbacks (qb) are in the top 30? (1 point)
 
