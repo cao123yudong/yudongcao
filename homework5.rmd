@@ -146,39 +146,35 @@ Perform the following manipulations: (2 points each)
 1. Order the data set by `id` and `dt`.
 
 ```{r}
-attach(x)
-x<-x[order(id,dt),]
+x<-x[order(x[,'id'],x[,'dt']),]
 ```
 
 2. For each `id`, determine if there is more than a one year gap in between observations.  Add a new row at the one year mark, with the `a1c` value set to missing.  A two year gap would require two new rows, and so forth.
 
 ```{r}
 library(lubridate)
-attach(x)
 d<-0
 for (i in 1:499) {
-  if (id[i]==id[i+1]) {
-    d[i]<-floor(difftime(dt[i+1],dt[i])/365)
+  if (x[,'id'][i]==x[,'id'][i+1]) {
+    d[i]<-floor(difftime(x[,'dt'][i+1],x[,'dt'][i])/365)
   }
 }
-a<-data.frame(id[which(d==1)],dt[which(d==1)]+years(1),NA)
+a<-data.frame(x$id[which(d==1)],x$dt[which(d==1)]+years(1),NA)
 names(a)<-c('id','dt','a1c')
-b<-data.frame(id[which(d==2)],dt[which(d==2)]+years(1),NA)
+b<-data.frame(x$id[which(d==2)],x$dt[which(d==2)]+years(1),NA)
 names(b)<-c('id','dt','a1c')
-c<-data.frame(id[which(d==2)],dt[which(d==2)]+years(2),NA)
+c<-data.frame(x$id[which(d==2)],x$dt[which(d==2)]+years(2),NA)
 names(c)<-c('id','dt','a1c')
 x<-rbind(x,a,b,c)
-attach(x)
-x<-x[order(id,dt),]
+x<-x[order(x$id,x$dt),]
 ```
 
 3. Create a new column `visit`.  For each `id`, add the visit number.  This should be 1 to `n` where `n` is the number of observations for an individual.  This should include the observations created with missing a1c values.
 
 ```{r}
-attach(x)
 visit<-1
 for (i in 1:555) {
-  if (id[i]==id[i+1]) {
+  if (x$id[i]==x$id[i+1]) {
     visit[i+1]<-visit[i]+1
   } else {
     visit[i+1]<-1    
@@ -190,7 +186,11 @@ x[,'visit']<-visit
 4. For each `id`, replace missing values with the mean `a1c` value for that individual.
 
 ```{r}
-x[,'a1c'][which(is.na(x[,'a1c']))]<-mean(x[,'a1c'][which(!is.na(x[,'a1c']))])
+for (i in 1:nrow(x)) {
+  if(is.na(x$a1c[i])) {
+    x$a1c[i] <- mean(x$a1c[which(x$id == x$id[i])], na.rm = TRUE)
+  }
+}
 ```
 
 5. Print mean `a1c` for each `id`.
