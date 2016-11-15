@@ -1,0 +1,290 @@
+---
+title: 'Bios 6301: Assignment 5'
+output: pdf_document
+author: "Yudong Cao"
+---
+
+*Due Tuesday, 15 November, 1:00 PM*
+
+$5^{n=day}$ points taken off for each day late.
+
+50 points total.
+
+Submit a single knitr file (named `homework5.rmd`), along with a valid PDF output file. Inside the file, clearly indicate which parts of your responses go with which problems (you may use the original homework document as a template). Add your name as `author` to the file's metadata section. Raw R code/output or word processor files are not acceptable.
+
+Failure to name file `homework5.rmd` or include author name may result in 5 points taken off.
+
+### Question 1 ###
+
+**24 points**
+
+Import the HAART dataset (`haart.csv`) from the GitHub repository into R, and perform the following manipulations: (4 points each)
+
+```{r}
+haart<-read.csv('haart.csv')
+```
+
+1. Convert date columns into a usable (for analysis) format.  Use the `table` command to display the counts of the year from `init.date`.
+
+```{r}
+haart[,'last.visit'] <- as.POSIXct(haart[,'last.visit'], format="%m/%d/%y")
+haart[,'init.date'] <- as.POSIXct(haart[,'init.date'], format="%m/%d/%y")
+haart[,'date.death'] <- as.POSIXct(haart[,'date.death'], format="%m/%d/%y")
+init.date.year<-sub("([0-9]{4})-([0-9]{2})-([0-9]{2})","\\1",haart[,'init.date'])
+table(init.date.year)
+```
+
+2. Create an indicator variable (one which takes the values 0 or 1 only) to represent death within 1 year of the initial visit.  How many observations died in year 1?
+
+```{r}
+time.diff<-haart[,'date.death']-haart[,'init.date']
+haart[,'death.within.1year']<-ifelse(time.diff<=365,1,0)
+table(haart[,'death.within.1year'])
+```
+92 observations died in year 1.
+
+3. Use the `init.date`, `last.visit` and `death.date` columns to calculate a followup time (in days), which is the difference between the first and either the last visit or a death event (whichever comes first). If these times are longer than 1 year, censor them (this means if the value is above 365, set followup to 365).  Print the quantile for this new variable.
+
+```{r}
+fut.visit<-difftime(haart[,'last.visit'], haart[,'init.date'], units="days")
+fut.visit<-ifelse(fut.visit>365,365,fut.visit)
+fut.death<-difftime(haart[,'date.death'], haart[,'init.date'], units="days")
+fut.death<-ifelse(fut.death>365,365,fut.death)
+attach(haart)
+followup.time<-0
+for (i in 1:nrow(haart)) {
+  if (is.na(fut.death[i])) {
+    followup.time[i]=fut.visit[i]
+  } else { 
+    followup.time[i]=min(fut.visit[i],fut.death[i])
+  }
+}
+haart[,'fut']<-ceiling(followup.time)
+quantile(followup.time,na.rm=T)
+```
+
+4. Create another indicator variable representing loss to followup; this means the observation is not known to be dead but does not have any followup visits after the first year.  How many records are lost-to-followup?
+
+```{r}
+haart[,'loss.tfu']<-ifelse(haart[,'fut']==365 & haart[,'death']==0,1,0)
+table(haart[,'loss.tfu'])
+```
+710 records are lost-to-followup.
+
+5. Recall our work in class, which separated the `init.reg` field into a set of indicator variables, one for each unique drug. Create these fields and append them to the database as new columns.  Which drug regimen are found over 100 times?
+
+```{r}
+haart[,'init.reg']<-as.character(haart[,'init.reg'])
+all.reg<-strsplit(haart[,'init.reg'],",")
+all.reg<-unlist(all.reg)
+table(all.reg)
+```
+3TC, AZT, D4T, EFV and NVP are found over 100 times.
+```{r}
+all.reg<-unique(all.reg)
+row.reg<-strsplit(haart[,'init.reg'], ",")
+user.reg<-sapply(all.reg,function(j) sapply(row.reg,function(i) j %in% i))
+haart<-cbind(haart,+user.reg)
+head(haart)
+```
+
+6. The dataset `haart2.csv` contains a few additional observations for the same study. Import these and append them to your master dataset (if you were smart about how you coded the previous steps, cleaning the additional observations should be easy!).  Show the first five records and the last five records of the complete (and clean) data set.
+
+```{r}
+haart2<-read.csv('haart2.csv')
+haart2[,'last.visit'] <- as.POSIXct(haart2[,'last.visit'], format="%m/%d/%y")
+haart2[,'init.date'] <- as.POSIXct(haart2[,'init.date'], format="%m/%d/%y")
+haart2[,'date.death'] <- as.POSIXct(haart2[,'date.death'], format="%m/%d/%y")
+time.diff2<-haart2[,'date.death']-haart2[,'init.date']
+haart2[,'death.within.1year']<-ifelse(time.diff2<=365,1,0)
+fut.visit2<-difftime(haart2[,'last.visit'], haart2[,'init.date'], units="days")
+fut.visit2<-ifelse(fut.visit2>365,365,fut.visit2)
+attach(haart2)
+followup.time2<-0
+for (i in 1:nrow(haart2)) {
+    followup.time2[i]=fut.visit2[i]
+}
+haart2[,'fut']<-ceiling(followup.time2)
+haart2[,'loss.tfu']<-ifelse(haart2[,'fut']==365 & haart2[,'death']==0,1,0)
+haart2[,'init.reg']<-as.character(haart2[,'init.reg'])
+row.reg2<-strsplit(haart2[,'init.reg'], ",")
+user.reg2<-sapply(all.reg,function(j) sapply(row.reg2,function(i) j %in% i))
+haart2<-cbind(haart2,+user.reg2)
+haart<-rbind(haart,haart2)
+head(haart,n=5)
+tail(haart,n=5)
+```
+
+### Question 2 ###
+
+**14 points**
+
+Use the following code to generate data for patients with repeated measures of A1C (a test for levels of blood glucose).
+
+```{r}
+genData <- function(n) {
+    if(exists(".Random.seed", envir = .GlobalEnv)) {
+        save.seed <- get(".Random.seed", envir= .GlobalEnv)
+        on.exit(assign(".Random.seed", save.seed, envir = .GlobalEnv))
+    } else {
+        on.exit(rm(".Random.seed", envir = .GlobalEnv))
+    }
+    set.seed(n)
+    subj <- ceiling(n / 10)
+    id <- sample(subj, n, replace=TRUE)
+    times <- as.integer(difftime(as.POSIXct("2005-01-01"), as.POSIXct("2000-01-01"), units='secs'))
+    dt <- as.POSIXct(sample(times, n), origin='2000-01-01')
+    mu <- runif(subj, 4, 10)
+    a1c <- unsplit(mapply(rnorm, tabulate(id), mu, SIMPLIFY=FALSE), id)
+    data.frame(id, dt, a1c)
+}
+x <- genData(500)
+```
+
+Perform the following manipulations: (2 points each)
+
+1. Order the data set by `id` and `dt`.
+
+```{r}
+attach(x)
+x<-x[order(id,dt),]
+```
+
+2. For each `id`, determine if there is more than a one year gap in between observations.  Add a new row at the one year mark, with the `a1c` value set to missing.  A two year gap would require two new rows, and so forth.
+
+```{r}
+library(lubridate)
+attach(x)
+d<-0
+for (i in 1:499) {
+  if (id[i]==id[i+1]) {
+    d[i]<-floor(difftime(dt[i+1],dt[i])/365)
+  }
+}
+a<-data.frame(id[which(d==1)],dt[which(d==1)]+years(1),NA)
+names(a)<-c('id','dt','a1c')
+b<-data.frame(id[which(d==2)],dt[which(d==2)]+years(1),NA)
+names(b)<-c('id','dt','a1c')
+c<-data.frame(id[which(d==2)],dt[which(d==2)]+years(2),NA)
+names(c)<-c('id','dt','a1c')
+x<-rbind(x,a,b,c)
+attach(x)
+x<-x[order(id,dt),]
+```
+
+3. Create a new column `visit`.  For each `id`, add the visit number.  This should be 1 to `n` where `n` is the number of observations for an individual.  This should include the observations created with missing a1c values.
+
+```{r}
+attach(x)
+visit<-1
+for (i in 1:555) {
+  if (id[i]==id[i+1]) {
+    visit[i+1]<-visit[i]+1
+  } else {
+    visit[i+1]<-1    
+  }
+}
+x[,'visit']<-visit
+```
+
+4. For each `id`, replace missing values with the mean `a1c` value for that individual.
+
+```{r}
+x[,'a1c'][which(is.na(x[,'a1c']))]<-mean(x[,'a1c'][which(!is.na(x[,'a1c']))])
+```
+
+5. Print mean `a1c` for each `id`.
+
+```{r}
+attach(x)
+m<-matrix(0,nrow=2,ncol=50)
+for (i in 1:50) {
+  m[1,i]<-unique(id)[i]
+  m[2,i]<-mean(x[,'a1c'][id==i])
+}
+row.names(m)=c('id','mean a1c')
+print(m)
+```
+
+6. Print total number of visits for each `id`.
+
+```{r}
+attach(x)
+v<-matrix(0,nrow=2,ncol=50)
+for (i in 1:50) {
+  v[1,i]<-unique(id)[i]
+  v[2,i]<-max(visit[id==i])
+}
+row.names(v)=c('id','max visit')
+print(v)
+```
+
+7. Print the observations for `id = 15`.
+
+```{r}
+print(x[x$id==15,])
+```
+
+### Question 3 ###
+
+**10 points**
+
+Import the `addr.txt` file from the GitHub repository.  This file contains a listing of names and addresses (thanks google).  Parse each line to create a data.frame with the following columns: lastname, firstname, streetno, streetname, city, state, zip.  Keep middle 
+initials or abbreviated names in the firstname column.  Print out the entire data.frame.
+
+```{r}
+addr<-read.table('addr.txt',header=F,sep='\t',colClasses=c('character'))
+u<-unlist(strsplit(addr[,1],split="  "))
+u<-gsub("^\\s+|\\s+$","",u)
+u<-u[u!=""]
+x<-matrix(u,ncol=6,byrow=T)
+y<-data.frame(streetno<-sub("^(\\w+)\\s?(.*)$","\\1",x[,3]),streetname<-sub("^(\\w+)\\s?(.*)$","\\2",x[,3]))
+z<-as.data.frame(cbind(y,x)[-5])
+colnames(z)<-(c( 'streetno', 'streetname','lastname', 'firstname', 'city', 'state', 'zip'))
+z<-z[,c(3,4,1,2,5,6,7)]
+print(z)
+```
+
+### Question 4 ###
+
+**2 points**
+
+The first argument to most functions that fit linear models are formulas.  The following example defines the response variable `death` and allows the model to incorporate all other variables as terms. `.` is used to mean all columns not otherwise in the formula.
+
+```{r}
+url <- "https://github.com/fonnesbeck/Bios6301/raw/master/datasets/haart.csv"
+haart_df <- read.csv(url)[,c('death','weight','hemoglobin','cd4baseline')]
+coef(summary(glm(death ~ ., data=haart_df, family=binomial(logit))))
+```
+
+Now imagine running the above several times, but with a different response and data set each time.  Here's a function:
+
+```{r}
+myfun <- function(dat, response) {
+  form <- as.formula(response ~ .)
+  coef(summary(glm(form, data=dat, family=binomial(logit))))
+}
+```
+
+Unfortunately, it doesn't work. `tryCatch` is "catching" the error so that this file can be knit to PDF.
+
+```{r}
+tryCatch(myfun(haart_df, death), error = function(e) e)
+```
+
+What do you think is going on?  Consider using `debug` to trace the problem.
+
+The error is that death itself is not a character object variable that needs to be in the as.formula function. To fix it, we need to paste it with "~ .". 
+
+**5 bonus points**
+
+Create a working function.
+
+```{r}
+myfun <- function(dat, response) {
+  form <- as.formula(paste(response, "~ ."))
+  coef(summary(glm(form, data=dat, family=binomial(logit))))
+}
+myfun(haart_df, "death")
+```
+This new function with paste, deparse and substitute to process the formula produces exactly the same results as before. 
