@@ -1,0 +1,60 @@
+---
+title: 'Bios 6301: Final Project'
+output: pdf_document
+date: "12/12/2016"
+author: "Yudong Cao"
+---
+
+```{r, echo=FALSE}
+library(testthat)
+SummaryReporter$public_fields$max_reports <- Inf
+source('work.R')
+```
+
+```{r}
+test_dir('tests')
+```
+
+```{r, echo=FALSE}
+qb <- file.path('data', 'proj_qb16.csv')
+rb <- file.path('data', 'proj_rb16.csv')
+wr <- file.path('data', 'proj_wr16.csv')
+te <- file.path('data', 'proj_te16.csv')
+k <- file.path('data', 'proj_k16.csv')
+cur <- file.path('data', 'nfl_current16.csv')
+
+stats <- importProjection(c(qb=qb,rb=rb,wr=wr,te=te,k=k))
+obs <- importObserved(cur)
+n <- 10
+gp <- c(CLE=11, TEN=11)
+scproj <- scaleByGamesPlayed(stats, n, gp)
+best <- topPicks(scproj, pos=c(k=20, qb=20, rb=40, wr=60, te=20))
+mdat <- mergeDat(best, obs)
+res <- residuals(mdat)
+nteams <- 12
+cap <- 200
+pos <- c(qb=1, rb=2, wr=3, te=1, k=1)
+points <- c(fg=4, xpt=1, pass_yds=1/25, pass_tds=4, pass_ints=-2,
+             rush_yds=1/10, rush_tds=6, fumbles=-2, rec_yds=1/20, rec_tds=6)
+
+l <- league(stats, nteams, cap, pos, points)
+# 500 simulations:
+ls <- simleague(500, res, stats, nteams, cap, pos, points)
+cls <- ci(ls)
+```
+
+```{r}
+l
+tryCatch(plot(l), error=function(e) { print('scatterplot') })
+tryCatch(boxplot(l), error=function(e) { print('boxplot') })
+tryCatch(hist(l), error=function(e) { print('histogram') })
+```
+
+```{r}
+cls
+tryCatch(plot(cls, 'qb'), error=function(e) { print('QB-CI plot') })
+tryCatch(plot(cls, 'rb'), error=function(e) { print('RB-CI plot') })
+tryCatch(plot(cls, 'wr'), error=function(e) { print('WR-CI plot') })
+tryCatch(plot(cls, 'te'), error=function(e) { print('TE-CI plot') })
+tryCatch(plot(cls, 'k'), error=function(e) { print('K-CI plot') })
+```
